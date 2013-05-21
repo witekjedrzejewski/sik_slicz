@@ -13,6 +13,7 @@
 
 #include "error_codes.h"
 #include "err.h"
+#include "ports.h"
 #include "utils.h"
 #include "slicz.h"
 
@@ -42,6 +43,8 @@ static void
 process_setconfig(char* config, struct evbuffer* output) {
 	if (setconfig(config) != 0)
 		print_error_to_buf("Invalid configuration", output);
+	else
+		evbuffer_add_printf(output, "OK\n");
 }
 
 /* processes getconfig, prints result to given buffer */
