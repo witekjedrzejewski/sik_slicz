@@ -4,8 +4,14 @@
     <df root="." name="zadanie3">
       <in>err.c</in>
       <in>err.h</in>
+      <in>error_codes.c</in>
+      <in>error_codes.h</in>
+      <in>ports.c</in>
+      <in>ports.h</in>
       <in>slicz.c</in>
       <in>slicz.h</in>
+      <in>utils.c</in>
+      <in>utils.h</in>
     </df>
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>

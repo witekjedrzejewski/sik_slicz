@@ -1,9 +1,13 @@
 #ifndef _SIK_PORTS_H_
 #define	_SIK_PORTS_H_
 
+#include <stdint.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+
 /* list of tagged vlans */
 typedef struct vlan_node {
-	int vlan;
+	uint16_t vlan;
 	struct vlan_node* next;
 } vlan_list_t;
 
@@ -11,9 +15,11 @@ typedef struct vlan_node {
 typedef struct slicz_port {
 	uint16_t lis_port; /* listening port, host-bit-order */
 	vlan_list_t* vlan_list; /* list of tagged vlans */
-	uint16_t untagged; /* untagged vlan (-1 if none) */
+	int untagged; /* untagged vlan (-1 if none) */
 	int is_bound; /* is receiver data set */
-	struct sockaddr receiver; /* receiver data */
+	
+	/* receiver data */
+	struct sockaddr_in receiver;
 	
 	int sock; /* sock descriptor */
 	
@@ -33,8 +39,17 @@ typedef struct port_node {
 	struct port_node* next;
 } port_list_t;
 
-/* sets port configuration, returns 0 on success */
+/* sets port configuration, returns err code */
 int setconfig(char* config);
+
+/* returns pointer to first port */
+port_list_t* port_list_get_first();
+
+/* returns pointer to next port */
+port_list_t* port_list_get_next(port_list_t* ptr);
+
+/* fills bud with description of pointed port */
+void port_list_print_port(char* buf, port_list_t* ptr);
 
 #endif
 

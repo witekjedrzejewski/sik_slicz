@@ -4,8 +4,14 @@
     <df root="." name="zadanie3">
       <in>err.c</in>
       <in>err.h</in>
+      <in>error_codes.c</in>
+      <in>error_codes.h</in>
+      <in>ports.c</in>
+      <in>ports.h</in>
       <in>slicz.c</in>
       <in>slicz.h</in>
+      <in>utils.c</in>
+      <in>utils.h</in>
     </df>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -32,7 +38,7 @@
           <buildCommandWorkingDir>.</buildCommandWorkingDir>
           <buildCommand>${MAKE} -f Makefile</buildCommand>
           <cleanCommand>${MAKE} -f Makefile clean</cleanCommand>
-          <executablePath></executablePath>
+          <executablePath>slicz</executablePath>
         </makeTool>
       </makefileType>
       <item path="err.c" ex="false" tool="0" flavor2="2">
@@ -41,11 +47,23 @@
       </item>
       <item path="err.h" ex="false" tool="3" flavor2="0">
       </item>
+      <item path="error_codes.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="error_codes.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="ports.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="ports.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="slicz.c" ex="false" tool="0" flavor2="2">
         <cTool>
         </cTool>
       </item>
       <item path="slicz.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="utils.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="utils.h" ex="false" tool="3" flavor2="0">
       </item>
     </conf>
   </confs>

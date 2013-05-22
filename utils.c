@@ -1,3 +1,6 @@
+#include <stdlib.h>
+#include <string.h>
+
 #include "utils.h"
 
 int starts_with(char* text, char* prefix) {
