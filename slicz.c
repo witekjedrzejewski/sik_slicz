@@ -1,4 +1,3 @@
-#include <event2/event.h>
 #include <event2/util.h>
 #include <event2/buffer.h>
 #include <event2/bufferevent.h>
@@ -28,6 +27,10 @@
 int active_connections = 0;
 int control_port;
 struct event_base *base;
+
+struct event_base* get_base() {
+	return base;
+}
 
 /* prints error to given buffer */
 static void
