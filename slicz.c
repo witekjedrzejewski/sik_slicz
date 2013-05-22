@@ -56,7 +56,7 @@ static void process_getconfig(struct evbuffer* output) {
 	evbuffer_add_printf(output, "OK\n");
 	while (iterator != NULL) {
 		port_list_print_port(buf, iterator);
-		evbuffer_add_printf("%s\n", buf);
+		evbuffer_add_printf(output, "%s\n", buf);
 		iterator = port_list_get_next(iterator);
 	}
 	evbuffer_add_printf(output, "END\n");

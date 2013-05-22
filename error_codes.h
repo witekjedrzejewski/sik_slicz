@@ -10,7 +10,7 @@
 #define ERR_VLAN_DUP 6
 #define ERR_VLAN_MANY_U 7
 #define ERR_SOCK 8
-#define ERR_TO_MANY 9
+#define ERR_TOO_MANY 9
 
 /* generates error message given code */
 char* get_error_message(int error_code);
