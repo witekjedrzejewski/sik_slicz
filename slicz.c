@@ -79,7 +79,6 @@ static void process_counters(struct evbuffer* output) {
 
 /* parses command, prints output to given buffer */
 static void process_command(char* command_line, struct evbuffer* output) {
-	printf("process command [%s]\n", command_line);
 	if (starts_with(command_line, SETCONFIG_COMMAND))
 		process_setconfig(command_line + strlen(SETCONFIG_COMMAND) + 1, output);
 		/* + 1 for space */
@@ -200,6 +199,5 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	printf("starting\n");
 	slicz_start();
 }

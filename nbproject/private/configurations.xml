@@ -6,6 +6,8 @@
       <in>err.h</in>
       <in>error_codes.c</in>
       <in>error_codes.h</in>
+      <in>macs_map.c</in>
+      <in>macs_map.h</in>
       <in>ports.c</in>
       <in>ports.h</in>
       <in>slicz.c</in>

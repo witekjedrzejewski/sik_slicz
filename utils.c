@@ -18,7 +18,7 @@ int starts_with(char* text, char* prefix) {
 }
 
 int sockaddr_from_host_port(char* host, char* port, 
-				struct sockaddr_in* result) {
+				struct sockaddr_in* result, socklen_t* len) {
 	
 	struct addrinfo* addr_result = NULL;
 	struct addrinfo addr_hints;
@@ -31,7 +31,8 @@ int sockaddr_from_host_port(char* host, char* port,
 	
 	memset(result, 0, sizeof(result));
 	memcpy(result, addr_result->ai_addr, addr_result->ai_addrlen);
-
+	*len = addr_result->ai_addrlen;
+	
   freeaddrinfo(addr_result);
 	return OK;
 }
