@@ -74,23 +74,43 @@ static void vlan_list_print(char* buf, slicz_port_t* port) {
 	buf[w-1] = '\0';
 }
 
+static void bind_port_with_addr(evutil_socket_t sock, slicz_port_t* port) {
+	if (connect(sock, &port->receiver, (socklen_t) sizeof(port->receiver)) < 0)
+		syserr("Connecting udp socket");
+}
+
+static void unbind_port_and_addr(evutil_socket_t sock, slicz_port_t* port) {
+	if (!port->is_bound)
+		return;
+	port->is_bound = 0;
+	memset(&port->receiver, 0, sizeof(port->receiver));
+	port->receiver->sin_family = AF_UNSPEC;
+	if (connect(sock, &port->receiver, (socklen_t) sizeof(port->receiver)) < 0)
+		syserr("Disconnecting udp socket");
+}
+
 static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
   
 	slicz_port_t* port = (slicz_port_t*) arg;
   char buf[MAX_FRAME_LENGTH];
-  struct sockaddr_in sender;
-	socklen_t sender_len = (socklen_t) sizeof(sender);
-	int r = recvfrom(sock, buf, sizeof(buf), MSG_DONTWAIT,
+	int r;
+	if (port->is_bound) {
+		r = recv(sock, buf, sizeof(buf), MSG_DONTWAIT);
+		if (r < 0) {/* reading failed - we remove bound address */
+			unbind_port_and_addr(sock, port);
+		}
+	} else {
+		struct sockaddr_in sender;
+		socklen_t sender_len = (socklen_t) sizeof(sender);
+		r = recvfrom(sock, buf, sizeof(buf), MSG_DONTWAIT,
         (struct sockaddr*) &sender, &sender_len);
-
-  if (r < 0) /* reading failed - we remove bound address */
-		port->is_bound = 0;
-  
-	if (port->is_bound) { /* we check if it is our receiver */
-	
-	} else { /* we add receiver */
-		memcpy(port->receiver, &sender, sender_len);
+		if (r < 0)
+			return;
+		memcpy(&port->receiver, &sender, sender_len);
+		bind_port_with_addr(sock, port);
 	}
+	
+	/* TODO cos z ramkami */
 }
 
 
@@ -118,13 +138,17 @@ static int prepare_port(
 						(socklen_t) sizeof(lis_addr)) < 0)
 			return ERR_SOCK;
 
+		if (is_bound) {
+			connect(udp_sock, receiver, (socklen_t)sizeof(receiver));
+		}
+		
 		*port = malloc(sizeof(slicz_port_t));
 		(*port)->sock = udp_sock;
 		(*port)->read_event = event_new(get_base(), udp_sock, EV_READ|EV_PERSIST,
       read_frame_event, (void*) *port);
-		(*port)->write_event = event_new(get_base(), udp_sock, EV_WRITE|EV_PERSIST,
+		/*(*port)->write_event = event_new(get_base(), udp_sock, EV_WRITE|EV_PERSIST,
       write_frame_event, (void*) *port);
-		
+		*/
 	} else {
 		delete_vlan_list((*port)->vlan_list);
 	}
