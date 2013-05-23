@@ -55,7 +55,7 @@ static void process_getconfig(struct evbuffer* output) {
 	
 	evbuffer_add_printf(output, "OK\n");
 	while (iterator != NULL) {
-		port_list_print_port(buf, iterator);
+		print_port_description(buf, iterator);
 		evbuffer_add_printf(output, "%s\n", buf);
 		iterator = port_list_get_next(iterator);
 	}
@@ -64,7 +64,17 @@ static void process_getconfig(struct evbuffer* output) {
 
 /* processes counters, prints result to given buffer */
 static void process_counters(struct evbuffer* output) {
-	
+	port_list_t* iterator = port_list_get_first();
+	uint16_t port;
+	unsigned recv, sent, errs;
+	evbuffer_add_printf(output, "OK\n");
+	while (iterator != NULL) {
+		get_port_counters(iterator, &port, &recv, &sent, &errs);
+		evbuffer_add_printf(output, "%d recvd:%d sent:%d errs:%d\n", 
+						port, recv, sent, errs);
+		iterator = port_list_get_next(iterator);
+	}
+	evbuffer_add_printf(output, "END\n");
 }
 
 /* parses command, prints output to given buffer */

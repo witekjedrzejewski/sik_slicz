@@ -13,6 +13,41 @@
 #define MAX_VLAN 4095
 #define MAX_ACTIVE_PORTS 100
 #define MAX_ADDRESS_LENGTH 100
+#define MAX_FRAME_LENGTH 1542
+
+/* list of tagged vlans */
+typedef struct vlan_node {
+	uint16_t vlan;
+	struct vlan_node* next;
+} vlan_list_t;
+
+/* single listening port in switch */
+typedef struct slicz_port {
+	uint16_t lis_port; /* listening port, host-bit-order */
+	vlan_list_t* vlan_list; /* list of tagged vlans */
+	int untagged; /* untagged vlan (-1 if none) */
+	int is_bound; /* is receiver data set */
+	
+	/* receiver data */
+	struct sockaddr_in receiver;
+	
+	int sock; /* sock descriptor */
+	
+	/* events */
+	struct event* read_event;
+	struct event* write_event;
+	/* counters */
+	unsigned recv;
+	unsigned sent;
+	unsigned errs;
+	
+} slicz_port_t;
+
+/* list of listening port */
+struct port_node {
+	slicz_port_t* port;
+	struct port_node* next;
+};
 
 /* list of all ports */
 port_list_t* port_list = NULL;
@@ -38,6 +73,26 @@ static void vlan_list_print(char* buf, slicz_port_t* port) {
 	/* delete last comma */
 	buf[w-1] = '\0';
 }
+
+static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
+  
+	slicz_port_t* port = (slicz_port_t*) arg;
+  char buf[MAX_FRAME_LENGTH];
+  struct sockaddr_in sender;
+	socklen_t sender_len = (socklen_t) sizeof(sender);
+	int r = recvfrom(sock, buf, sizeof(buf), MSG_DONTWAIT,
+        (struct sockaddr*) &sender, &sender_len);
+
+  if (r < 0) /* reading failed - we remove bound address */
+		port->is_bound = 0;
+  
+	if (port->is_bound) { /* we check if it is our receiver */
+	
+	} else { /* we add receiver */
+		memcpy(port->receiver, &sender, sender_len);
+	}
+}
+
 
 /* if is_new, prepares new port, in other case updates port configuration
  * returns err_code */
@@ -65,11 +120,11 @@ static int prepare_port(
 
 		*port = malloc(sizeof(slicz_port_t));
 		(*port)->sock = udp_sock;
-/*		new_port->read_event = event_new(get_base(), udp_sock, EV_READ|EV_PERSIST,
-      read_frame_event, (void*) new_port);
-		new_port->write_event = event_new(get_base(), udp_sock, EV_WRITE|EV_PERSIST,
-      write_frame_event, (void*) new_port);
-	*/	
+		(*port)->read_event = event_new(get_base(), udp_sock, EV_READ|EV_PERSIST,
+      read_frame_event, (void*) *port);
+		(*port)->write_event = event_new(get_base(), udp_sock, EV_WRITE|EV_PERSIST,
+      write_frame_event, (void*) *port);
+		
 	} else {
 		delete_vlan_list((*port)->vlan_list);
 	}
@@ -93,37 +148,30 @@ static int port_list_exists(uint16_t lis_port) {
 }
 
 /* adds port to port_list, or replaces already existing */
-static void port_list_add(slicz_port_t** port) {
+static void port_list_add(slicz_port_t* port) {
 	
-	uint16_t lis_port = (*port)->lis_port;
-	port_list_t** elt = &port_list;
-	port_list_t** last = NULL;
+	uint16_t lis_port = port->lis_port;
+	port_list_t* elt = port_list;
+	port_list_t* last = NULL;
 	
-	while (*elt != NULL && (*elt)->port->lis_port <= lis_port) {
+	while (elt != NULL && elt->port->lis_port <= lis_port) {
 		last = elt;
-		elt = &(*elt)->next;
+		elt = elt->next;
 	}
 	
-	if (*elt == NULL) { /* appending */
-		*elt = malloc(sizeof(port_list_t));
-		(*elt)->port = *port;
-		(*elt)->next = NULL;
-	}
-	
-	if ((*elt)->port->lis_port > lis_port) {/* inserting in the middle */
+	if (elt == NULL || elt->port->lis_port > lis_port) {/* inserting */
 		port_list_t* new_node = malloc(sizeof(port_list_t));
-		new_node->port = *port;
+		new_node->port = port;
 		if (last == NULL) {/* adding from front */
-			new_node->next = *elt;
+			new_node->next = elt;
 			port_list = new_node;
 		} else {
-			new_node->next = (*last)->next;
-			(*last)->next = new_node;
+			new_node->next = last->next;
+			last->next = new_node;
 		}
+	} else { /* replacing */
+		elt->port = port;
 	}
-	
-	/* replacing */
-	(*elt)->port = *port;
 }
 
 /* checks if v exists in vlan */
@@ -183,31 +231,6 @@ static int vlan_list_from_string(char* data, vlan_list_t** list_ptr,
 	if (vlan_list_exists(*list_ptr, *untagged)) 
 		return ERR_VLAN_DUP;
 	printf("vlan_list ok\n");
-	return OK;
-}
-
-/* fills sockaddr basing on host and port, returns err_code */
-static int sockaddr_from_host_port(char* host, char* port, 
-				struct sockaddr_in* result) {
-	
-	struct addrinfo* addr_result = NULL;
-	struct addrinfo addr_hints;
-  memset(&addr_hints, 0, sizeof(struct addrinfo));
-  addr_hints.ai_family = AF_INET; // IPv4
-  addr_hints.ai_socktype = SOCK_STREAM;
-  addr_hints.ai_protocol = IPPROTO_TCP;
-  if (getaddrinfo(host, port, &addr_hints, &addr_result) != 0)
-		return ERR_ADDR_WRONG;
-	
-	memset(result, 0, sizeof(result));
-	memcpy(result, addr_result->ai_addr, addr_result->ai_addrlen);
-	/*
-	result->sin_family = AF_INET; // IPv4
-  result->sin_addr.s_addr =
-      ((struct sockaddr_in*) (addr_result->ai_addr))->sin_addr.s_addr;
-  result->sin_port = htons((uint16_t) atoi(port));
-*/
-  freeaddrinfo(addr_result);
 	return OK;
 }
 
@@ -272,7 +295,7 @@ int setconfig(char* config) {
 	if (err != OK)
 		return err;
 	
-	port_list_add(&port_node);
+	port_list_add(port_node);
 	return OK;
 }
 
@@ -284,8 +307,7 @@ port_list_t* port_list_get_next(port_list_t* ptr) {
 	return ptr->next;
 }
 
-/* returns description of pointed port */
-void port_list_print_port(char* buf, port_list_t* ptr) {
+void print_port_description(char* buf, port_list_t* ptr) {
 	char vlan_buf[MAX_COMMAND_LINE_LENGTH];
 	char addr_buf[MAX_ADDRESS_LENGTH];
 	int w = sprintf(buf, "%d/", ptr->port->lis_port);
@@ -298,4 +320,13 @@ void port_list_print_port(char* buf, port_list_t* ptr) {
 	}
 	vlan_list_print(vlan_buf, ptr->port);
 	sprintf(buf + w, "/%s", vlan_buf);
+}
+
+void get_port_counters(port_list_t* ptr, uint16_t* port, 
+				unsigned* recv, unsigned* sent, unsigned* errs) {
+	
+	*port = ptr->port->lis_port;
+	*recv = ptr->port->recv;
+	*sent = ptr->port->sent;
+	*errs = ptr->port->errs;
 }

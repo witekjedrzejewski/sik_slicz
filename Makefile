@@ -15,8 +15,11 @@ utils.o: utils.c
 ports.o: ports.c
 	$(CC) $(CFLAGS) -c ports.c -o ports.o
 
-slicz: slicz.c err.o utils.o ports.o error_codes.o
-	$(CC) $(CFLAGS) slicz.c err.o utils.o ports.o error_codes.o -o slicz -levent
+macs_map.o: macs_map.c
+	$(CC) $(CFLAGS) -c macs_map.c -o macs_map.o
+
+slicz: slicz.c err.o utils.o ports.o error_codes.o macs_map.o
+	$(CC) $(CFLAGS) slicz.c err.o utils.o ports.o error_codes.o macs_map.o -o slicz -levent
 
 clean:
 	rm -f slicz *.o
