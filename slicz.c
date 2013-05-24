@@ -156,7 +156,7 @@ static void accept_error_cb(struct evconnlistener *listener, void *ctx) {
 	event_base_loopexit(base, NULL);
 }
 
-/* runs base */
+/* inits base */
 void slicz_start() {
 	base = event_base_new();
 	if (!base) syserr("Error creating base");
@@ -175,30 +175,36 @@ void slicz_start() {
 		syserr("Creating TCP listener listener");
 
 	evconnlistener_set_error_cb(listener, accept_error_cb);
-	
-	event_base_dispatch(base);
 }
 
 int main(int argc, char** argv) {
 	char opt;
 	control_port = DEFAULT_CONTROL_PORT;
 	int was_c = 0;
-	while ((opt = getopt(argc, argv, ":c:p")) != -1) {
-		switch (opt) {
-			case 'c':
-				if (was_c == 1)
-					fatal("There should be one 'c' parametr.");
-				was_c = 1;
+	
+	/* we have to start base before adding ports (they have events) */
+	
+	while ((opt = getopt(argc, argv, "c:p:")) != -1) {
+		if (opt == 'c') {
+			if (!was_c) {
 				control_port = atoi(optarg);
-				break;
-			case 'p': /* todo too early - base not started */
-				if (setconfig(optarg) != 0)
-					fatal("Invalid configuration: %s", optarg);
-				break;
-			default:
-				fatal("Wrong parameter");
+				was_c = 1;
+			} else {
+				fatal("There should be one -c flag");
+			}
+		} else if (opt != 'p') {
+			fatal("Wrong parameter");
 		}
 	}
-
+	
 	slicz_start();
+	optind = 1;
+	
+	while ((opt = getopt(argc, argv, "c:p:")) != -1) {
+		if (opt == 'p') {
+			if (setconfig(optarg) != OK)
+				fatal("Invalid configuration: %s", optarg);
+		}
+	}
+	event_base_dispatch(base);
 }
