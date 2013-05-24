@@ -4,7 +4,7 @@
 #include <event2/event.h>
 
 #include "error_codes.h"
-#include "utils.h"
+#include "common.h"
 
 int starts_with(char* text, char* prefix) {
 	size_t i;

@@ -16,7 +16,7 @@
 #include "error_codes.h"
 #include "err.h"
 #include "ports.h"
-#include "utils.h"
+#include "common.h"
 #include "slicz.h"
 
 #define DEFAULT_CONTROL_PORT 42420
@@ -156,6 +156,7 @@ static void accept_error_cb(struct evconnlistener *listener, void *ctx) {
 	event_base_loopexit(base, NULL);
 }
 
+/* runs base */
 void slicz_start() {
 	base = event_base_new();
 	if (!base) syserr("Error creating base");
@@ -190,7 +191,7 @@ int main(int argc, char** argv) {
 				was_c = 1;
 				control_port = atoi(optarg);
 				break;
-			case 'p':
+			case 'p': /* todo too early - base not started */
 				if (setconfig(optarg) != 0)
 					fatal("Invalid configuration: %s", optarg);
 				break;

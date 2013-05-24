@@ -1,3 +1,5 @@
+/* functions that not belong to any particular module */
+
 #ifndef _SIK_UTILS_H_
 #define	_SIK_UTILS_H_
 

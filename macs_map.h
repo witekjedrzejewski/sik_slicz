@@ -1,8 +1,11 @@
+/* map from (mac,vlan) to slicz port */
+
 #ifndef _SIK_MACS_MAP_H_
 #define	_SIK_MACS_MAP_H_
 
-#include "ports.h" /* mainly for slicz_port_t declaration */
+#include "ports.h"
 
+/* MAC address */
 typedef struct mac_addr_t {
 	unsigned char a[6];
 } mac_t;

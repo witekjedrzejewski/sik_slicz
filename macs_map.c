@@ -8,6 +8,7 @@
 
 #define MACS_MAP_SIZE 4096
 
+/* single record in map */
 typedef struct map_record {
 	mac_t mac;
 	int vlan;
@@ -16,8 +17,11 @@ typedef struct map_record {
 	int removed; /* is record removed */
 } map_record_t;
 
+/* map as static table */
 map_record_t map[MACS_MAP_SIZE];
-size_t map_count = 0; /* number of (unremoved) records */
+
+/* number of (unremoved) records */
+size_t map_count = 0;
 
 /* returns if two macs are equal */
 static int macs_equal(mac_t m1, mac_t m2) {

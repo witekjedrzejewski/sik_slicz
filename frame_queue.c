@@ -4,14 +4,15 @@
 
 #define MAX_QUEUE_SIZE 64000
 
+/* single node in queue */
 typedef struct frame_node {
 	struct frame_node* next;
 	frame_t frame;
 } frame_node_t;
 
 struct frame_queue {
-	frame_node_t* head;
-	frame_node_t* last;
+	frame_node_t* head; /* first elt */
+	frame_node_t* last; /* last elt */
 	size_t size;
 };
 

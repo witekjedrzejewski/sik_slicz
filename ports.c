@@ -5,7 +5,7 @@
 #include <event2/event.h>
 #include <arpa/inet.h>
 
-#include "utils.h"
+#include "common.h"
 #include "ports.h"
 #include "slicz.h"
 #include "error_codes.h"
@@ -13,36 +13,31 @@
 #include "macs_map.h"
 #include "frame.h"
 #include "frame_queue.h"
+#include "vlan_list.h"
 
 #define MIN_VLAN 1
 #define MAX_VLAN 4095
 #define MAX_ACTIVE_PORTS 100
 #define MAX_ADDRESS_LENGTH 100
 
-/* list of tagged vlans */
-typedef struct vlan_node {
-	uint16_t vlan;
-	struct vlan_node* next;
-} vlan_list_t;
-
 /* single listening port in switch */
 struct slicz_port {
-	uint16_t lis_port; /* listening port, host-bit-order */
+	
+	uint16_t lis_port;			/* listening port, host-byte-ordered */
 	vlan_list_t* vlan_list; /* list of tagged vlans */
-	int untagged; /* untagged vlan (-1 if none) */
-	int is_bound; /* is receiver data set */
+	int untagged;						/* untagged vlan (-1 if none) */
+	int is_bound;						/* is receiver data set */
+	
+	int sock;								/* sock descriptor */
+	frame_queue_t* queue;		/* queue of frames to send */
 	
 	/* receiver data */
 	struct sockaddr_in receiver;
 	socklen_t recv_len;
-	
-	int sock; /* sock descriptor */
-	
+
 	/* events */
 	struct event* read_event;
 	struct event* write_event;
-	
-	frame_queue_t* queue;
 	
 	/* counters */
 	unsigned recv;
@@ -63,91 +58,43 @@ port_list_t* port_list = NULL;
 /* number of active listening ports */
 int active_ports = 0;
 
-/* checks if v exists in vlan */
-static int vlan_list_exists(vlan_list_t* list, uint16_t v) {
-	vlan_list_t* elt = list;
-	while (elt != NULL && elt->vlan != v)
-		elt = elt->next;
-	return (elt != NULL);
+/* ----------------------------SLICZ PORT ---------------------------------*/
+
+/* cheks if port has particular vlan */
+static int port_has_vlan(slicz_port_t* port, int vlan) {
+	return vlan_list_exists(port->vlan_list, vlan)
+					|| port->untagged == vlan;
 }
 
-/* adds vlan to list, returns err_code */
-static int vlan_list_add(vlan_list_t** list_ptr, uint16_t v) {
-	if (vlan_list_exists(*list_ptr, v))
-		return ERR_VLAN_DUP;
-	
-	vlan_list_t* new = malloc(sizeof(vlan_list_t));
-	new->vlan = v;
-	new->next = NULL;
-	
-	if (*list_ptr == NULL) {
-		*list_ptr = new;
-	} else {
-		new->next = *list_ptr;
-		*list_ptr = new;
-	}
-		
-	return OK;
+/* tries to add frame to port's queue */
+static void add_frame_to_queue(slicz_port_t* from, slicz_port_t* to, 
+				frame_t* frame) {
+	if (!frame_queue_push(to->queue, frame))
+		from->errs++; /* no room in buffer */
+	else
+		event_add(to->write_event, NULL);
 }
 
-/* parses data to vlan list or untagged vlan, returns 0 on success */
-static int vlan_list_from_string(char* data, vlan_list_t** list_ptr, 
-				int* untagged) {
-	*untagged = -1;
-	char* v = strtok(data, ",");
-	while (v != NULL) {
-		uint16_t vlan = atoi(v); /* t is trimmed */
-		if (vlan < MIN_VLAN || vlan > MAX_VLAN)
-			return ERR_VLAN_BOUNDS;
-		
-		if (v[strlen(v)-1] == 't') {/* tagged */
-			int err = vlan_list_add(list_ptr, vlan);
-			if (err != 0)
-				return err;
-		} else {
-			if (*untagged == -1)
-				*untagged = vlan;
-			else /* more than one untagged vlan */
-				return ERR_VLAN_MANY_U;
-		}
-		v = strtok(NULL, ",");
-	}
-	if (*list_ptr == NULL && *untagged == -1) /* no vlans */
-		return ERR_VLAN_NONE;
-	if (vlan_list_exists(*list_ptr, *untagged)) 
-		return ERR_VLAN_DUP;
-	return OK;
-}
-
-static void delete_vlan_list(vlan_list_t* list) {
-	if (list != NULL) {
-		delete_vlan_list(list->next); /* recursive */
-		free(list);
-	}
-}
-
-static void vlan_list_print(char* buf, slicz_port_t* port) {
-	int w = 0;
-	if (port->untagged != -1)
-		w = sprintf(buf, "%d,", port->untagged);
-
-	vlan_list_t* elt = port->vlan_list;
-	while (elt != NULL) {
-		w += sprintf(buf + w, "%dt,", elt->vlan);
+/* adds frame to all (but sender's) ports in given vlan */
+static void send_frame_to_all(frame_t* frame, int vlan, slicz_port_t* from) {
+	port_list_t* elt = port_list;
+	while (elt != 0) {
+		if (elt->port != from && port_has_vlan(elt->port, vlan))
+			add_frame_to_queue(from, elt->port, frame);
 		elt = elt->next;
 	}
-	
-	/* delete last comma */
-	buf[w-1] = '\0';
 }
 
+/* bounds port with address from receiver field */
 static void bind_port_with_addr(slicz_port_t* port) {
 	if (connect(port->sock, (struct sockaddr *)&(port->receiver), 
 					port->recv_len) < 0)
 		syserr("Connecting udp socket");
 	port->is_bound = 1;
+	event_add(port->write_event, NULL);
 }
 
+/* disconnects port from it's address (if any) */
 static void unbind_port_and_addr(slicz_port_t* port) {
 	if (!port->is_bound)
 		return;
@@ -159,10 +106,70 @@ static void unbind_port_and_addr(slicz_port_t* port) {
 		syserr("Disconnecting udp socket");
 }
 
+/* read single frame */
+static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
+  
+	printf("read event\n");
+	slicz_port_t* port = (slicz_port_t*) arg;
+  char buf[MAX_FRAME_SIZE];
+	memset(buf, 0, sizeof(buf));
+	int r;
+	if (port->is_bound) {
+		r = recv(sock, buf, sizeof(buf), MSG_DONTWAIT);
+		if (r < 0) {/* reading failed - we remove bound address */
+			unbind_port_and_addr(port);
+		}
+	} else {
+		struct sockaddr_in sender;
+		socklen_t sender_len = (socklen_t) sizeof(sender);
+		r = recvfrom(sock, buf, sizeof(buf), MSG_DONTWAIT,
+        (struct sockaddr*) &sender, &sender_len);
+		if (r < MIN_FRAME_SIZE)
+			return;
+		memcpy(&port->receiver, &sender, sender_len);
+		port->recv_len = sender_len;
+		bind_port_with_addr(port);
+	}
+	
+	printf("%d -> [%s]\n", port->lis_port, buf);
+	
+	frame_t* frame = frame_from_str(buf);
+	printf("have frame\n");
+	int vlan;
+	if (frame_is_tagged(frame)) {
+		vlan = frame_vlan(frame);
+	} else {
+		printf("untagged one\n");
+		vlan = port->untagged;
+		if (vlan == -1) { 
+			port->errs++; /* untagged frame, no default vlan */
+			return;
+		}
+		frame_set_vlan(frame, vlan);
+	}
+	
+	mac_t src_mac = frame_src_mac(frame);
+	mac_t dst_mac = frame_dst_mac(frame);
+	
+	macs_map_set(src_mac, vlan, port);
+	port->recv++;
+	
+	if (mac_is_multicast(dst_mac) || !macs_map_exists(dst_mac, vlan)) {
+		send_frame_to_all(frame, vlan, port);
+	} else {
+		slicz_port_t* recv_port = macs_map_get(dst_mac, vlan);
+		add_frame_to_queue(port, recv_port, frame);
+	}
+	free(frame);
+}
+
+/* when we can write, we try to send one frame from out queue */
 static void write_frame_event(evutil_socket_t sock, short ev, void* arg) {
 	slicz_port_t* port = (slicz_port_t*) arg;
-	if (frame_queue_is_empty(port->queue) || !port->is_bound)
+	if (frame_queue_is_empty(port->queue) || !port->is_bound) {
+		event_del(port->write_event);
 		return;
+	}
 	
 	frame_t* frame = malloc(sizeof(frame_t));
 	frame_queue_pop(port->queue, frame);
@@ -183,73 +190,41 @@ static void write_frame_event(evutil_socket_t sock, short ev, void* arg) {
 	free(frame);
 }
 
-static int port_has_vlan(slicz_port_t* port, int vlan) {
-	return vlan_list_exists(port->vlan_list, vlan)
-					|| port->untagged == vlan;
+/* prints port's vlan list into buffer */
+static void port_vlan_list_print(char* buf, slicz_port_t* port) {
+	int w = 0;
+	if (port->untagged != -1)
+		w = sprintf(buf, "%d,", port->untagged);
+
+	vlan_list_print(buf + w, port->vlan_list);
+	
+	/* delete last comma */
+	buf[strlen(buf)-1] = '\0';
 }
 
-static void send_frame_to_all(frame_t* frame, int vlan, slicz_port_t* from) {
-	port_list_t* elt = port_list;
-	while (elt != 0) {
-		if (elt->port != from && port_has_vlan(elt->port, vlan))
-			if (!frame_queue_push(elt->port->queue, frame))
-				from->errs++;
-		elt = elt->next;
+void print_port_description(char* buf, port_list_t* ptr) {
+	char vlan_buf[MAX_COMMAND_LINE_LENGTH];
+	char addr_buf[MAX_ADDRESS_LENGTH];
+	int w = sprintf(buf, "%d/", ptr->port->lis_port);
+  if (ptr->port->is_bound) {
+		inet_ntop(AF_INET, &(ptr->port->receiver.sin_addr), 
+						addr_buf, INET_ADDRSTRLEN);
+		w += sprintf(buf + w, "%s:", addr_buf);
+		int recv_port = ntohs(ptr->port->receiver.sin_port);
+		w += sprintf(buf + w, "%d", recv_port);
 	}
+	port_vlan_list_print(vlan_buf, ptr->port);
+	sprintf(buf + w, "/%s", vlan_buf);
 }
 
-static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
-  
-	slicz_port_t* port = (slicz_port_t*) arg;
-  char buf[MAX_FRAME_SIZE];
-	memset(buf, 0, sizeof(buf));
-	int r;
-	if (port->is_bound) {
-		r = recv(sock, buf, sizeof(buf), MSG_DONTWAIT);
-		if (r < 0) {/* reading failed - we remove bound address */
-			unbind_port_and_addr(port);
-		}
-	} else {
-		struct sockaddr_in sender;
-		socklen_t sender_len = (socklen_t) sizeof(sender);
-		r = recvfrom(sock, buf, sizeof(buf), MSG_DONTWAIT,
-        (struct sockaddr*) &sender, &sender_len);
-		if (r < 0)
-			return;
-		memcpy(&port->receiver, &sender, sender_len);
-		port->recv_len = sender_len;
-		bind_port_with_addr(port);
-	}
+/* fills args with adequate counters values */
+void get_port_counters(port_list_t* ptr, uint16_t* port, 
+				unsigned* recv, unsigned* sent, unsigned* errs) {
 	
-	
-	printf("%d -> [%s]\n", port->lis_port, buf);
-	
-	frame_t* frame = frame_from_str(buf);
-	int vlan;
-	if (frame_is_tagged(frame)) {
-		vlan = frame_vlan(frame);
-	} else {
-		vlan = port->untagged;
-		if (vlan == -1) { 
-			port->errs++; /* untagged frame, no default vlan */
-			return;
-		}
-		frame_set_vlan(frame, vlan);
-	}
-	
-	mac_t src_mac = frame_src_mac(frame);
-	mac_t dst_mac = frame_dst_mac(frame);
-	
-	macs_map_set(src_mac, vlan, port);
-	port->recv++;
-	
-	if (mac_is_multicast(dst_mac) || !macs_map_exists(dst_mac, vlan)) {
-		send_frame_to_all(frame, vlan, port);
-	} else {
-		slicz_port_t* recv_port = macs_map_get(dst_mac, vlan);
-		if (!frame_queue_push(recv_port->queue, frame))
-			port->errs++;
-	}
+	*port = ptr->port->lis_port;
+	*recv = ptr->port->recv;
+	*sent = ptr->port->sent;
+	*errs = ptr->port->errs;
 }
 
 /* if is_new, prepares new port, in other case updates port configuration */
@@ -262,14 +237,14 @@ static void prepare_port(slicz_port_t** port, int is_new, uint16_t lis_port,
 	(*port)->recv = (*port)->sent = (*port)->errs = 0;
 	
 	if (is_new) {
-		printf("creating new elt\n");
-		
 		int udp_sock;
 		int err = setup_udp(&udp_sock, lis_port);
 		if (err != OK)
 			syserr("Setup udp socket");
 	
 		(*port)->sock = udp_sock;
+		
+		(*port)->queue = frame_queue_new();
 		
 		(*port)->read_event = event_new(get_base(), udp_sock, EV_READ|EV_PERSIST,
       read_frame_event, (void*) *port);
@@ -291,8 +266,11 @@ static void prepare_port(slicz_port_t** port, int is_new, uint16_t lis_port,
 		bind_port_with_addr(*port);
 	
 	event_add((*port)->read_event, NULL); /* no timeout */
-	event_add((*port)->write_event, NULL);
 }
+
+
+/* --------------------------- PORT_LIST ------------------------------ */
+
 
 /* checks if listening port is on list */
 static int port_list_exists(uint16_t lis_port) {
@@ -330,6 +308,45 @@ static int port_list_add(uint16_t lis_port, slicz_port_t** port) {
 		*port = elt->port;
 		return 0;
 	}
+}
+
+port_list_t* port_list_get_first() {
+	return port_list;
+}
+
+port_list_t* port_list_get_next(port_list_t* ptr) {
+	return ptr->next;
+}
+
+/* ---------------------------- SETCONFIG ---------------------------------*/
+
+/* parses data to vlan list or untagged vlan, returns 0 on success */
+static int vlan_list_from_string(char* data, vlan_list_t** list_ptr, 
+				int* untagged) {
+	*untagged = -1;
+	char* v = strtok(data, ",");
+	while (v != NULL) {
+		uint16_t vlan = atoi(v); /* t is trimmed */
+		if (vlan < MIN_VLAN || vlan > MAX_VLAN)
+			return ERR_VLAN_BOUNDS;
+		
+		if (v[strlen(v)-1] == 't') {/* tagged */
+			int err = vlan_list_add(list_ptr, vlan);
+			if (err != 0)
+				return err;
+		} else {
+			if (*untagged == -1)
+				*untagged = vlan;
+			else /* more than one untagged vlan */
+				return ERR_VLAN_MANY_U;
+		}
+		v = strtok(NULL, ",");
+	}
+	if (*list_ptr == NULL && *untagged == -1) /* no vlans */
+		return ERR_VLAN_NONE;
+	if (vlan_list_exists(*list_ptr, *untagged)) 
+		return ERR_VLAN_DUP;
+	return OK;
 }
 
 int setconfig(char* config) {
@@ -396,36 +413,4 @@ int setconfig(char* config) {
 	
 	active_ports++;
 	return OK;
-}
-
-port_list_t* port_list_get_first() {
-	return port_list;
-}
-
-port_list_t* port_list_get_next(port_list_t* ptr) {
-	return ptr->next;
-}
-
-void print_port_description(char* buf, port_list_t* ptr) {
-	char vlan_buf[MAX_COMMAND_LINE_LENGTH];
-	char addr_buf[MAX_ADDRESS_LENGTH];
-	int w = sprintf(buf, "%d/", ptr->port->lis_port);
-  if (ptr->port->is_bound) {
-		inet_ntop(AF_INET, &(ptr->port->receiver.sin_addr), 
-						addr_buf, INET_ADDRSTRLEN);
-		w += sprintf(buf + w, "%s:", addr_buf);
-		int recv_port = ntohs(ptr->port->receiver.sin_port);
-		w += sprintf(buf + w, "%d", recv_port);
-	}
-	vlan_list_print(vlan_buf, ptr->port);
-	sprintf(buf + w, "/%s", vlan_buf);
-}
-
-void get_port_counters(port_list_t* ptr, uint16_t* port, 
-				unsigned* recv, unsigned* sent, unsigned* errs) {
-	
-	*port = ptr->port->lis_port;
-	*recv = ptr->port->recv;
-	*sent = ptr->port->sent;
-	*errs = ptr->port->errs;
 }

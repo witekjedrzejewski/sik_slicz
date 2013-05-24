@@ -1,3 +1,5 @@
+/* list of slicz's ports and everything that concerns them */
+
 #ifndef _SIK_PORTS_H_
 #define	_SIK_PORTS_H_
 

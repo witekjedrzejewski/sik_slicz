@@ -1,7 +1,9 @@
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 #include <linux/if_ether.h>
 #include <netinet/in.h>
-#include <string.h>
 
 #include "frame.h"
 
@@ -18,9 +20,11 @@ int frame_vlan(frame_t* f) {
 }
 
 frame_t* frame_from_str(char* buf) {
-	frame_t* f = (frame_t*) buf;
+	frame_t* f = malloc(sizeof(frame_t));
+	memcpy(f, buf, strlen(buf));
 	if (!frame_is_tagged(f)) {
 		size_t content_size = strlen(buf) - MACS_END;
+		/* move content to content section */
 		memmove(f + TAG_END, f + MACS_END, content_size);
 	}
 	return f;
@@ -29,6 +33,7 @@ frame_t* frame_from_str(char* buf) {
 void frame_to_str(frame_t* f, char* buf) {
 	buf = (char*) f;
 	if (!frame_is_tagged(f)) {
+		/* pull content back to header */
 		memmove(buf + MACS_END, buf + TAG_END, strlen(f->content));
 	}
 }

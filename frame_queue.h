@@ -1,8 +1,11 @@
+/* FIFO queue of frames */
+
 #ifndef _SIK_FRAME_QUEUE_H_
 #define	_SIK_FRAME_QUEUE_H_
 
 #include "frame.h"
 
+/* queue */
 typedef struct frame_queue frame_queue_t;
 
 /* returns new empty queue */
