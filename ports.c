@@ -228,13 +228,13 @@ void get_port_counters(port_list_t* ptr, uint16_t* port,
 }
 
 /* if is_new, prepares new port, in other case updates port configuration */
-static void prepare_port(slicz_port_t** port, int is_new, uint16_t lis_port,
+static void prepare_port(slicz_port_t* port, int is_new, uint16_t lis_port,
 				int is_bound, struct sockaddr_in receiver, socklen_t recv_len,
 				vlan_list_t* vlans, int untagged) {
-	(*port)->lis_port = lis_port;
-	(*port)->vlan_list = vlans;
-	(*port)->untagged = untagged;
-	(*port)->recv = (*port)->sent = (*port)->errs = 0;
+	port->lis_port = lis_port;
+	port->vlan_list = vlans;
+	port->untagged = untagged;
+	port->recv = port->sent = port->errs = 0;
 	
 	if (is_new) {
 		int udp_sock;
@@ -242,30 +242,30 @@ static void prepare_port(slicz_port_t** port, int is_new, uint16_t lis_port,
 		if (err != OK)
 			syserr("Setup udp socket");
 	
-		(*port)->sock = udp_sock;
+		port->sock = udp_sock;
 		
-		(*port)->queue = frame_queue_new();
+		port->queue = frame_queue_new();
 		
-		(*port)->read_event = event_new(get_base(), udp_sock, EV_READ|EV_PERSIST,
-      read_frame_event, (void*) *port);
-		(*port)->write_event = event_new(get_base(), udp_sock, EV_WRITE|EV_PERSIST,
-      write_frame_event, (void*) *port);
+		port->read_event = event_new(get_base(), udp_sock, EV_READ|EV_PERSIST,
+      read_frame_event, (void*) port);
+		port->write_event = event_new(get_base(), udp_sock, EV_WRITE|EV_PERSIST,
+      write_frame_event, (void*) port);
 
 	} else { 
-		delete_vlan_list((*port)->vlan_list);
-		macs_map_delete_all_by_port(*port); /* delete all concerning mac records */
-		unbind_port_and_addr(*port);
+		delete_vlan_list(port->vlan_list);
+		macs_map_delete_all_by_port(port); /* delete all concerning mac records */
+		unbind_port_and_addr(port);
 	}
 	
-	(*port)->is_bound = 0; /* new or just unbound */
+	port->is_bound = 0; /* new or just unbound */
 	
 	/* important to call AFTER unbind */
-	(*port)->receiver = receiver; 
-	(*port)->recv_len = recv_len;
+	port->receiver = receiver; 
+	port->recv_len = recv_len;
 	if (is_bound) /* not port->is_bound */
-		bind_port_with_addr(*port);
+		bind_port_with_addr(port);
 	
-	event_add((*port)->read_event, NULL); /* no timeout */
+	event_add(port->read_event, NULL); /* no timeout */
 }
 
 
@@ -408,7 +408,7 @@ int setconfig(char* config) {
 	
 	slicz_port_t* port_node;
 	port_list_add(lis_port_num, &port_node);
-	prepare_port(&port_node, is_new, lis_port_num, is_recv_given, 
+	prepare_port(port_node, is_new, lis_port_num, is_recv_given, 
 					receiver, recv_len, vlan_list, untagged);
 	
 	active_ports++;
