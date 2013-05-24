@@ -3,7 +3,9 @@
 
 #include "ports.h" /* mainly for slicz_port_t declaration */
 
-typedef struct mac_addr_t mac_t;
+typedef struct mac_addr_t {
+	unsigned char a[6];
+} mac_t;
 
 /* adds or updates record*/
 void macs_map_set(mac_t mac, int vlan, slicz_port_t* port);
@@ -17,6 +19,9 @@ slicz_port_t* macs_map_get(mac_t mac, int vlan);
 
 /* deletes or records concerning given port */
 void macs_map_delete_all_by_port(slicz_port_t* port);
+
+/* checks if mac is set to multicast */
+int mac_is_multicast(mac_t mac);
 
 #endif
 

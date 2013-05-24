@@ -6,12 +6,17 @@
       <in>err.h</in>
       <in>error_codes.c</in>
       <in>error_codes.h</in>
+      <in>frame.c</in>
+      <in>frame.h</in>
+      <in>frame_queue.c</in>
+      <in>frame_queue.h</in>
       <in>macs_map.c</in>
       <in>macs_map.h</in>
       <in>ports.c</in>
       <in>ports.h</in>
       <in>slicz.c</in>
       <in>slicz.h</in>
+      <in>test_frame_queue.c</in>
       <in>utils.c</in>
       <in>utils.h</in>
     </df>

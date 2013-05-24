@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -Wall -std=gnu99
 
 ALL = slicz
-SOURCES = err error_codes utils ports macs_map frame_queue
+SOURCES = err error_codes utils ports macs_map frame_queue frame
 OBJECTS = $(addsuffix .o, $(SOURCES))
 
 all: slicz

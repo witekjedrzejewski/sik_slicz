@@ -6,11 +6,16 @@
       <in>err.h</in>
       <in>error_codes.c</in>
       <in>error_codes.h</in>
+      <in>frame.c</in>
+      <in>frame.h</in>
+      <in>frame_queue.c</in>
+      <in>frame_queue.h</in>
       <in>macs_map.c</in>
       <in>ports.c</in>
       <in>ports.h</in>
       <in>slicz.c</in>
       <in>slicz.h</in>
+      <in>test_frame_queue.c</in>
       <in>utils.c</in>
       <in>utils.h</in>
     </df>
@@ -54,6 +59,14 @@
       </item>
       <item path="error_codes.h" ex="false" tool="3" flavor2="0">
       </item>
+      <item path="frame.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="frame.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="frame_queue.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="frame_queue.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="macs_map.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="ports.c" ex="false" tool="0" flavor2="0">
@@ -65,6 +78,8 @@
         </cTool>
       </item>
       <item path="slicz.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="test_frame_queue.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="utils.c" ex="false" tool="0" flavor2="0">
       </item>

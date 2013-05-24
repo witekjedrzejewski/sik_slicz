@@ -8,10 +8,6 @@
 
 #define MACS_MAP_SIZE 4096
 
-struct mac_addr_t {
-	unsigned char a[6];
-};
-
 typedef struct map_record {
 	mac_t mac;
 	int vlan;
@@ -77,4 +73,8 @@ void macs_map_delete_all_by_port(slicz_port_t* port) {
 		if (map[i].port == port)
 			map[i].removed = 1;
 	}
+}
+
+int mac_is_multicast(mac_t mac) {
+	return mac.a[0] & 1;
 }

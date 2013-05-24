@@ -11,12 +11,13 @@
 #include "error_codes.h"
 #include "err.h"
 #include "macs_map.h"
+#include "frame.h"
+#include "frame_queue.h"
 
 #define MIN_VLAN 1
 #define MAX_VLAN 4095
 #define MAX_ACTIVE_PORTS 100
 #define MAX_ADDRESS_LENGTH 100
-#define MAX_FRAME_LENGTH 1518 /* including header, basing on example */
 
 /* list of tagged vlans */
 typedef struct vlan_node {
@@ -40,6 +41,9 @@ struct slicz_port {
 	/* events */
 	struct event* read_event;
 	struct event* write_event;
+	
+	frame_queue_t* queue;
+	
 	/* counters */
 	unsigned recv;
 	unsigned sent;
@@ -58,153 +62,6 @@ port_list_t* port_list = NULL;
 
 /* number of active listening ports */
 int active_ports = 0;
-
-static void delete_vlan_list(vlan_list_t* list) {
-	if (list != NULL) {
-		delete_vlan_list(list->next); /* recursive */
-		free(list);
-	}
-}
-
-static void vlan_list_print(char* buf, slicz_port_t* port) {
-	int w = 0;
-	if (port->untagged != -1)
-		w = sprintf(buf, "%d,", port->untagged);
-
-	vlan_list_t* elt = port->vlan_list;
-	while (elt != NULL) {
-		w += sprintf(buf + w, "%dt,", elt->vlan);
-		elt = elt->next;
-	}
-	
-	/* delete last comma */
-	buf[w-1] = '\0';
-}
-
-static void bind_port_with_addr(slicz_port_t* port) {
-	if (connect(port->sock, (struct sockaddr *)&(port->receiver), 
-					port->recv_len) < 0)
-		syserr("Connecting udp socket");
-	port->is_bound = 1;
-}
-
-static void unbind_port_and_addr(slicz_port_t* port) {
-	if (!port->is_bound)
-		return;
-	port->is_bound = 0;
-	memset(&port->receiver, 0, port->recv_len);
-	port->receiver.sin_family = AF_UNSPEC;
-	if (connect(port->sock, (struct sockaddr *)&(port->receiver), 
-					port->recv_len) < 0)
-		syserr("Disconnecting udp socket");
-}
-
-
-static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
-  
-	slicz_port_t* port = (slicz_port_t*) arg;
-  char buf[MAX_FRAME_LENGTH];
-	int r;
-	if (port->is_bound) {
-		r = recv(sock, buf, sizeof(buf), MSG_DONTWAIT);
-		if (r < 0) {/* reading failed - we remove bound address */
-			unbind_port_and_addr(port);
-		}
-	} else {
-		struct sockaddr_in sender;
-		socklen_t sender_len = (socklen_t) sizeof(sender);
-		r = recvfrom(sock, buf, sizeof(buf), MSG_DONTWAIT,
-        (struct sockaddr*) &sender, &sender_len);
-		if (r < 0)
-			return;
-		memcpy(&port->receiver, &sender, sender_len);
-		port->recv_len = sender_len;
-		bind_port_with_addr(port);
-	}
-	
-	printf("%d -> [%s]\n", port->lis_port, buf);
-	
-	/* TODO cos z ramkami */
-}
-
-/* if is_new, prepares new port, in other case updates port configuration */
-static void prepare_port(slicz_port_t** port, int is_new, uint16_t lis_port,
-				int is_bound, struct sockaddr_in receiver, socklen_t recv_len,
-				vlan_list_t* vlans, int untagged) {
-	(*port)->lis_port = lis_port;
-	(*port)->vlan_list = vlans;
-	(*port)->untagged = untagged;
-	(*port)->recv = (*port)->sent = (*port)->errs = 0;
-	
-	if (is_new) {
-		printf("creating new elt\n");
-		
-		int udp_sock;
-		int err = setup_udp(&udp_sock, lis_port);
-		if (err != OK)
-			syserr("Setup udp socket");
-	
-		(*port)->sock = udp_sock;
-		
-		(*port)->read_event = event_new(get_base(), udp_sock, EV_READ|EV_PERSIST,
-      read_frame_event, (void*) *port);
-		/*(*port)->write_event = event_new(get_base(), udp_sock, EV_WRITE|EV_PERSIST,
-      write_frame_event, (void*) *port);
-		*/
-	} else { 
-		delete_vlan_list((*port)->vlan_list);
-		macs_map_delete_all_by_port(*port); /* delete all concerning mac records */
-		unbind_port_and_addr(*port);
-	}
-	
-	(*port)->is_bound = 0; /* new or just unbound */
-	
-	/* important to call AFTER unbind */
-	(*port)->receiver = receiver; 
-	(*port)->recv_len = recv_len;
-	if (is_bound) /* not port->is_bound */
-		bind_port_with_addr(*port);
-	
-	event_add((*port)->read_event, NULL); /* no timeout */
-}
-
-/* checks if listening port is on list */
-static int port_list_exists(uint16_t lis_port) {
-	port_list_t* elt = port_list;
-	while (elt != NULL && elt->port->lis_port != lis_port)
-		elt = elt->next;
-	return elt != NULL;
-}
-
-/* adds port to port_list, or replaces already existing, 
- * returns 1 if added, 0 if replaced */
-static int port_list_add(uint16_t lis_port, slicz_port_t** port) {
-	
-	port_list_t* elt = port_list;
-	port_list_t* last = NULL;
-	
-	while (elt != NULL && elt->port->lis_port < lis_port) {
-		last = elt;
-		elt = elt->next;
-	}
-	
-	if (elt == NULL || elt->port->lis_port > lis_port) {/* inserting */
-		port_list_t* new_node = malloc(sizeof(port_list_t));
-		*port = malloc(sizeof(slicz_port_t));
-		new_node->port = *port;
-		if (last == NULL) {/* adding from front */
-			new_node->next = elt;
-			port_list = new_node;
-		} else {
-			new_node->next = last->next;
-			last->next = new_node;
-		}
-		return 1;
-	} else { /* lis_ports equal, replacing */
-		*port = elt->port;
-		return 0;
-	}
-}
 
 /* checks if v exists in vlan */
 static int vlan_list_exists(vlan_list_t* list, uint16_t v) {
@@ -260,6 +117,219 @@ static int vlan_list_from_string(char* data, vlan_list_t** list_ptr,
 	if (vlan_list_exists(*list_ptr, *untagged)) 
 		return ERR_VLAN_DUP;
 	return OK;
+}
+
+static void delete_vlan_list(vlan_list_t* list) {
+	if (list != NULL) {
+		delete_vlan_list(list->next); /* recursive */
+		free(list);
+	}
+}
+
+static void vlan_list_print(char* buf, slicz_port_t* port) {
+	int w = 0;
+	if (port->untagged != -1)
+		w = sprintf(buf, "%d,", port->untagged);
+
+	vlan_list_t* elt = port->vlan_list;
+	while (elt != NULL) {
+		w += sprintf(buf + w, "%dt,", elt->vlan);
+		elt = elt->next;
+	}
+	
+	/* delete last comma */
+	buf[w-1] = '\0';
+}
+
+static void bind_port_with_addr(slicz_port_t* port) {
+	if (connect(port->sock, (struct sockaddr *)&(port->receiver), 
+					port->recv_len) < 0)
+		syserr("Connecting udp socket");
+	port->is_bound = 1;
+}
+
+static void unbind_port_and_addr(slicz_port_t* port) {
+	if (!port->is_bound)
+		return;
+	port->is_bound = 0;
+	memset(&port->receiver, 0, port->recv_len);
+	port->receiver.sin_family = AF_UNSPEC;
+	if (connect(port->sock, (struct sockaddr *)&(port->receiver), 
+					port->recv_len) < 0)
+		syserr("Disconnecting udp socket");
+}
+
+static void write_frame_event(evutil_socket_t sock, short ev, void* arg) {
+	slicz_port_t* port = (slicz_port_t*) arg;
+	if (frame_queue_is_empty(port->queue) || !port->is_bound)
+		return;
+	
+	frame_t* frame = malloc(sizeof(frame_t));
+	frame_queue_pop(port->queue, frame);
+	
+	if (frame_vlan(frame) == port->untagged) {
+		frame_untag(frame);
+	}
+	
+	char buf[MAX_FRAME_SIZE];
+	frame_to_str(frame, buf);
+	size_t len = strlen(buf);
+	
+	if (send(port->sock, buf, len, MSG_DONTWAIT) < len)
+		port->errs++;
+	else
+		port->sent++;
+	
+	free(frame);
+}
+
+static int port_has_vlan(slicz_port_t* port, int vlan) {
+	return vlan_list_exists(port->vlan_list, vlan)
+					|| port->untagged == vlan;
+}
+
+static void send_frame_to_all(frame_t* frame, int vlan, slicz_port_t* from) {
+	port_list_t* elt = port_list;
+	while (elt != 0) {
+		if (elt->port != from && port_has_vlan(elt->port, vlan))
+			if (!frame_queue_push(elt->port->queue, frame))
+				from->errs++;
+		elt = elt->next;
+	}
+}
+
+static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
+  
+	slicz_port_t* port = (slicz_port_t*) arg;
+  char buf[MAX_FRAME_SIZE];
+	memset(buf, 0, sizeof(buf));
+	int r;
+	if (port->is_bound) {
+		r = recv(sock, buf, sizeof(buf), MSG_DONTWAIT);
+		if (r < 0) {/* reading failed - we remove bound address */
+			unbind_port_and_addr(port);
+		}
+	} else {
+		struct sockaddr_in sender;
+		socklen_t sender_len = (socklen_t) sizeof(sender);
+		r = recvfrom(sock, buf, sizeof(buf), MSG_DONTWAIT,
+        (struct sockaddr*) &sender, &sender_len);
+		if (r < 0)
+			return;
+		memcpy(&port->receiver, &sender, sender_len);
+		port->recv_len = sender_len;
+		bind_port_with_addr(port);
+	}
+	
+	
+	printf("%d -> [%s]\n", port->lis_port, buf);
+	
+	frame_t* frame = frame_from_str(buf);
+	int vlan;
+	if (frame_is_tagged(frame)) {
+		vlan = frame_vlan(frame);
+	} else {
+		vlan = port->untagged;
+		if (vlan == -1) { 
+			port->errs++; /* untagged frame, no default vlan */
+			return;
+		}
+		frame_set_vlan(frame, vlan);
+	}
+	
+	mac_t src_mac = frame_src_mac(frame);
+	mac_t dst_mac = frame_dst_mac(frame);
+	
+	macs_map_set(src_mac, vlan, port);
+	port->recv++;
+	
+	if (mac_is_multicast(dst_mac) || !macs_map_exists(dst_mac, vlan)) {
+		send_frame_to_all(frame, vlan, port);
+	} else {
+		slicz_port_t* recv_port = macs_map_get(dst_mac, vlan);
+		if (!frame_queue_push(recv_port->queue, frame))
+			port->errs++;
+	}
+}
+
+/* if is_new, prepares new port, in other case updates port configuration */
+static void prepare_port(slicz_port_t** port, int is_new, uint16_t lis_port,
+				int is_bound, struct sockaddr_in receiver, socklen_t recv_len,
+				vlan_list_t* vlans, int untagged) {
+	(*port)->lis_port = lis_port;
+	(*port)->vlan_list = vlans;
+	(*port)->untagged = untagged;
+	(*port)->recv = (*port)->sent = (*port)->errs = 0;
+	
+	if (is_new) {
+		printf("creating new elt\n");
+		
+		int udp_sock;
+		int err = setup_udp(&udp_sock, lis_port);
+		if (err != OK)
+			syserr("Setup udp socket");
+	
+		(*port)->sock = udp_sock;
+		
+		(*port)->read_event = event_new(get_base(), udp_sock, EV_READ|EV_PERSIST,
+      read_frame_event, (void*) *port);
+		(*port)->write_event = event_new(get_base(), udp_sock, EV_WRITE|EV_PERSIST,
+      write_frame_event, (void*) *port);
+
+	} else { 
+		delete_vlan_list((*port)->vlan_list);
+		macs_map_delete_all_by_port(*port); /* delete all concerning mac records */
+		unbind_port_and_addr(*port);
+	}
+	
+	(*port)->is_bound = 0; /* new or just unbound */
+	
+	/* important to call AFTER unbind */
+	(*port)->receiver = receiver; 
+	(*port)->recv_len = recv_len;
+	if (is_bound) /* not port->is_bound */
+		bind_port_with_addr(*port);
+	
+	event_add((*port)->read_event, NULL); /* no timeout */
+	event_add((*port)->write_event, NULL);
+}
+
+/* checks if listening port is on list */
+static int port_list_exists(uint16_t lis_port) {
+	port_list_t* elt = port_list;
+	while (elt != NULL && elt->port->lis_port != lis_port)
+		elt = elt->next;
+	return elt != NULL;
+}
+
+/* adds port to port_list, or replaces already existing, 
+ * returns 1 if added, 0 if replaced */
+static int port_list_add(uint16_t lis_port, slicz_port_t** port) {
+	
+	port_list_t* elt = port_list;
+	port_list_t* last = NULL;
+	
+	while (elt != NULL && elt->port->lis_port < lis_port) {
+		last = elt;
+		elt = elt->next;
+	}
+	
+	if (elt == NULL || elt->port->lis_port > lis_port) {/* inserting */
+		port_list_t* new_node = malloc(sizeof(port_list_t));
+		*port = malloc(sizeof(slicz_port_t));
+		new_node->port = *port;
+		if (last == NULL) {/* adding from front */
+			new_node->next = elt;
+			port_list = new_node;
+		} else {
+			new_node->next = last->next;
+			last->next = new_node;
+		}
+		return 1;
+	} else { /* lis_ports equal, replacing */
+		*port = elt->port;
+		return 0;
+	}
 }
 
 int setconfig(char* config) {
