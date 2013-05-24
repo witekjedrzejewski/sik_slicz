@@ -10,12 +10,13 @@
 #include "slicz.h"
 #include "error_codes.h"
 #include "err.h"
+#include "macs_map.h"
 
 #define MIN_VLAN 1
 #define MAX_VLAN 4095
 #define MAX_ACTIVE_PORTS 100
 #define MAX_ADDRESS_LENGTH 100
-#define MAX_FRAME_LENGTH 1542
+#define MAX_FRAME_LENGTH 1518 /* including header, basing on example */
 
 /* list of tagged vlans */
 typedef struct vlan_node {
@@ -24,7 +25,7 @@ typedef struct vlan_node {
 } vlan_list_t;
 
 /* single listening port in switch */
-typedef struct slicz_port {
+struct slicz_port {
 	uint16_t lis_port; /* listening port, host-bit-order */
 	vlan_list_t* vlan_list; /* list of tagged vlans */
 	int untagged; /* untagged vlan (-1 if none) */
@@ -44,7 +45,7 @@ typedef struct slicz_port {
 	unsigned sent;
 	unsigned errs;
 	
-} slicz_port_t;
+};
 
 /* list of listening port */
 struct port_node {
@@ -59,7 +60,10 @@ port_list_t* port_list = NULL;
 int active_ports = 0;
 
 static void delete_vlan_list(vlan_list_t* list) {
-	//todo
+	if (list != NULL) {
+		delete_vlan_list(list->next); /* recursive */
+		free(list);
+	}
 }
 
 static void vlan_list_print(char* buf, slicz_port_t* port) {
@@ -95,6 +99,7 @@ static void unbind_port_and_addr(slicz_port_t* port) {
 		syserr("Disconnecting udp socket");
 }
 
+
 static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
   
 	slicz_port_t* port = (slicz_port_t*) arg;
@@ -120,24 +125,6 @@ static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 	printf("%d -> [%s]\n", port->lis_port, buf);
 	
 	/* TODO cos z ramkami */
-}
-
-/* creats udp socket, binds it, returns err code */
-static int setup_udp(int *fd, uint16_t lis_port) {
-	
-	struct sockaddr_in lis_addr;
-	lis_addr.sin_family = AF_INET;
-	lis_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	lis_addr.sin_port = htons(lis_port);
-	int udp_sock = socket(PF_INET, SOCK_DGRAM, 0);
-	if (udp_sock < 0)
-		return ERR_SOCK;
-	if (bind(udp_sock, (struct sockaddr*)&lis_addr, 
-					(socklen_t) sizeof(lis_addr)) < 0)
-		return ERR_SOCK;
-
-	*fd = udp_sock; /* 'return' result */
-	return OK;
 }
 
 /* if is_new, prepares new port, in other case updates port configuration */
@@ -166,6 +153,7 @@ static void prepare_port(slicz_port_t** port, int is_new, uint16_t lis_port,
 		*/
 	} else { 
 		delete_vlan_list((*port)->vlan_list);
+		macs_map_delete_all_by_port(*port); /* delete all concerning mac records */
 		unbind_port_and_addr(*port);
 	}
 	

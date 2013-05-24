@@ -36,3 +36,20 @@ int sockaddr_from_host_port(char* host, char* port,
   freeaddrinfo(addr_result);
 	return OK;
 }
+
+int setup_udp(int *fd, uint16_t lis_port) {
+	
+	struct sockaddr_in lis_addr;
+	lis_addr.sin_family = AF_INET;
+	lis_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	lis_addr.sin_port = htons(lis_port);
+	int udp_sock = socket(PF_INET, SOCK_DGRAM, 0);
+	if (udp_sock < 0)
+		return ERR_SOCK;
+	if (bind(udp_sock, (struct sockaddr*)&lis_addr, 
+					(socklen_t) sizeof(lis_addr)) < 0)
+		return ERR_SOCK;
+
+	*fd = udp_sock; /* 'return' result */
+	return OK;
+}

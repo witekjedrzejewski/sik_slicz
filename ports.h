@@ -5,8 +5,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-struct port_node;
 typedef struct port_node port_list_t;
+typedef struct slicz_port slicz_port_t;
 
 /* sets port configuration, returns err code */
 int setconfig(char* config);

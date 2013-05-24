@@ -6,6 +6,7 @@
       <in>err.h</in>
       <in>error_codes.c</in>
       <in>error_codes.h</in>
+      <in>macs_map.c</in>
       <in>ports.c</in>
       <in>ports.h</in>
       <in>slicz.c</in>
@@ -47,9 +48,13 @@
       </item>
       <item path="err.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="error_codes.c" ex="false" tool="0" flavor2="0">
+      <item path="error_codes.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+        </cTool>
       </item>
       <item path="error_codes.h" ex="false" tool="3" flavor2="0">
+      </item>
+      <item path="macs_map.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="ports.c" ex="false" tool="0" flavor2="0">
       </item>
