@@ -17,7 +17,7 @@ struct frame_queue {
 };
 
 frame_queue_t* frame_queue_new() {
-	frame_queue_t* q = malloc(sizeof(frame_queue_t));
+	frame_queue_t* q = malloc(sizeof (frame_queue_t));
 	q->head = q->last = NULL;
 	q->size = 0;
 	return q;
@@ -28,10 +28,10 @@ int frame_queue_is_empty(frame_queue_t* q) {
 }
 
 int frame_queue_push(frame_queue_t* q, frame_t* f) {
-	if (q->size + sizeof(frame_t) > MAX_QUEUE_SIZE) /* full buffer */
+	if (q->size + sizeof (frame_t) > MAX_QUEUE_SIZE) /* full buffer */
 		return 0;
-	
-	frame_node_t* new_node = malloc(sizeof(frame_node_t));
+
+	frame_node_t* new_node = malloc(sizeof (frame_node_t));
 	new_node->frame = *f;
 	new_node->next = NULL;
 	if (q->head == NULL) { /* queue empty */
@@ -41,8 +41,8 @@ int frame_queue_push(frame_queue_t* q, frame_t* f) {
 		q->last->next = new_node;
 		q->last = new_node;
 	}
-	q->size += sizeof(frame_t);
-	
+	q->size += sizeof (frame_t);
+
 	return 1;
 }
 
@@ -53,6 +53,6 @@ void frame_queue_pop(frame_queue_t* q, frame_t* frame) {
 	free(old_head);
 	if (q->last == NULL)
 		q->last = q->head;
-	q->size -= sizeof(frame_t);
+	q->size -= sizeof (frame_t);
 	*frame = f;
 }

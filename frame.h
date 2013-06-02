@@ -14,9 +14,9 @@ typedef struct frame {
 	mac_t dst_mac; /* destination mac */
 	mac_t src_mac; /* source mac */
 	uint16_t tpid; /* Tag Protocol Identifier (empty if untagged) */
-	uint16_t tci;  /* Tag Control Information (empty if untagged) */
+	uint16_t tci; /* Tag Control Information (empty if untagged) */
 	char content[MAX_CONTENT_SIZE]; /* ether_type + payload */
-}__attribute__((packed)) frame_t;
+} __attribute__((packed)) frame_t;
 
 /* checks if frame is tagged 802.1q */
 int frame_is_tagged(frame_t* f);

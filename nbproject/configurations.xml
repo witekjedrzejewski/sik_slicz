@@ -2,6 +2,8 @@
 <configurationDescriptor version="88">
   <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
     <df root="." name="zadanie3">
+      <in>common.c</in>
+      <in>common.h</in>
       <in>err.c</in>
       <in>err.h</in>
       <in>error_codes.c</in>
@@ -11,13 +13,15 @@
       <in>frame_queue.c</in>
       <in>frame_queue.h</in>
       <in>macs_map.c</in>
+      <in>macs_map.h</in>
       <in>ports.c</in>
       <in>ports.h</in>
       <in>slicz.c</in>
       <in>slicz.h</in>
+      <in>slijent.c</in>
       <in>test_frame_queue.c</in>
-      <in>utils.c</in>
-      <in>utils.h</in>
+      <in>vlan_list.c</in>
+      <in>vlan_list.h</in>
     </df>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -36,6 +40,8 @@
       <toolsSet>
         <remote-sources-mode>LOCAL_SOURCES</remote-sources-mode>
         <compilerSet>default</compilerSet>
+        <dependencyChecking>false</dependencyChecking>
+        <rebuildPropChanged>false</rebuildPropChanged>
       </toolsSet>
       <codeAssistance>
       </codeAssistance>
@@ -47,6 +53,10 @@
           <executablePath>slicz</executablePath>
         </makeTool>
       </makefileType>
+      <item path="common.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="common.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="err.c" ex="false" tool="0" flavor2="2">
         <cTool>
         </cTool>
@@ -69,6 +79,8 @@
       </item>
       <item path="macs_map.c" ex="false" tool="0" flavor2="0">
       </item>
+      <item path="macs_map.h" ex="false" tool="3" flavor2="0">
+      </item>
       <item path="ports.c" ex="false" tool="0" flavor2="0">
       </item>
       <item path="ports.h" ex="false" tool="3" flavor2="0">
@@ -79,11 +91,17 @@
       </item>
       <item path="slicz.h" ex="false" tool="3" flavor2="0">
       </item>
-      <item path="test_frame_queue.c" ex="false" tool="0" flavor2="0">
+      <item path="slijent.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+        </cTool>
       </item>
-      <item path="utils.c" ex="false" tool="0" flavor2="0">
+      <item path="test_frame_queue.c" ex="false" tool="0" flavor2="2">
+        <cTool>
+        </cTool>
       </item>
-      <item path="utils.h" ex="false" tool="3" flavor2="0">
+      <item path="vlan_list.c" ex="false" tool="0" flavor2="0">
+      </item>
+      <item path="vlan_list.h" ex="false" tool="3" flavor2="0">
       </item>
     </conf>
   </confs>

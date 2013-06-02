@@ -2,6 +2,8 @@
 <configurationDescriptor version="88">
   <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
     <df root="." name="zadanie3">
+      <in>common.c</in>
+      <in>common.h</in>
       <in>err.c</in>
       <in>err.h</in>
       <in>error_codes.c</in>
@@ -16,9 +18,11 @@
       <in>ports.h</in>
       <in>slicz.c</in>
       <in>slicz.h</in>
+      <in>slijent.c</in>
+      <in>tap_example.c</in>
       <in>test_frame_queue.c</in>
-      <in>utils.c</in>
-      <in>utils.h</in>
+      <in>vlan_list.c</in>
+      <in>vlan_list.h</in>
     </df>
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>

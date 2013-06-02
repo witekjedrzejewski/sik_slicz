@@ -20,7 +20,7 @@ int frame_vlan(frame_t* f) {
 }
 
 frame_t* frame_from_str(char* buf) {
-	frame_t* f = malloc(sizeof(frame_t));
+	frame_t* f = malloc(sizeof (frame_t));
 	memcpy(f, buf, strlen(buf));
 	if (!frame_is_tagged(f)) {
 		size_t content_size = strlen(buf) - MACS_END;

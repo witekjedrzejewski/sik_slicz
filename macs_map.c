@@ -25,7 +25,7 @@ size_t map_count = 0;
 
 /* returns if two macs are equal */
 static int macs_equal(mac_t m1, mac_t m2) {
-	return memcmp(&m1, &m2, sizeof(mac_t)) == 0;
+	return memcmp(&m1, &m2, sizeof (mac_t)) == 0;
 }
 
 /* returns index of free or least recently modified record */
