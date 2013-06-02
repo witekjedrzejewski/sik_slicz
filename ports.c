@@ -108,7 +108,6 @@ static void unbind_port_and_addr(slicz_port_t* port) {
 /* read single frame */
 static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 
-	printf("read event\n");
 	slicz_port_t* port = (slicz_port_t*) arg;
 	char buf[MAX_FRAME_SIZE];
 	memset(buf, 0, sizeof (buf));
@@ -130,15 +129,11 @@ static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 		bind_port_with_addr(port);
 	}
 
-	printf("%d -> [%s]\n", port->lis_port, buf);
-
 	frame_t* frame = frame_from_str(buf);
-	printf("have frame\n");
 	int vlan;
 	if (frame_is_tagged(frame)) {
 		vlan = frame_vlan(frame);
 	} else {
-		printf("untagged one\n");
 		vlan = port->untagged;
 		if (vlan == -1) {
 			port->errs++; /* untagged frame, no default vlan */
