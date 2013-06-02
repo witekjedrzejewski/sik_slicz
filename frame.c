@@ -40,7 +40,7 @@ void frame_to_str(frame_t* f, char* buf) {
 
 void frame_set_vlan(frame_t* f, int vlan) {
 	if (!frame_is_tagged(f)) {
-		f->tpid = ntohs(ETH_P_8021Q);
+		f->tpid = htons(ETH_P_8021Q);
 	}
 	f->tci = htons(vlan & VLAN_FILTER);
 }

@@ -139,8 +139,10 @@ static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 			port->errs++; /* untagged frame, no default vlan */
 			return;
 		}
-		frame_set_vlan(frame, vlan);
 	}
+	/* sets vlan in untagged, 
+	 * fills unused fields with 0 in tagged */ 
+	frame_set_vlan(frame, vlan);
 
 	mac_t src_mac = frame_src_mac(frame);
 	mac_t dst_mac = frame_dst_mac(frame);
