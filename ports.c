@@ -89,6 +89,7 @@ static void bind_port_with_addr(slicz_port_t* port) {
 	if (connect(port->sock, (struct sockaddr *) &(port->receiver),
 					port->recv_len) < 0)
 		syserr("Connecting udp socket");
+	printf("connected %s:%hu\n", inet_ntoa(port->receiver.sin_addr), ntohs(port->receiver.sin_port));
 	port->is_bound = 1;
 	event_add(port->write_event, NULL);
 }
@@ -109,27 +110,36 @@ static void unbind_port_and_addr(slicz_port_t* port) {
 static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 
 	slicz_port_t* port = (slicz_port_t*) arg;
+	printf("reading from %d\n", port->lis_port);
+	
 	char buf[MAX_FRAME_SIZE];
 	memset(buf, 0, sizeof (buf));
 	int r;
 	if (port->is_bound) {
+		printf("port is bound\n");
 		r = recv(sock, buf, sizeof (buf), MSG_DONTWAIT);
 		if (r < 0) {/* reading failed - we remove bound address */
 			unbind_port_and_addr(port);
 		}
 	} else {
+		printf("port is not bound\n");
 		struct sockaddr_in sender;
 		socklen_t sender_len = (socklen_t) sizeof (sender);
 		r = recvfrom(sock, buf, sizeof (buf), MSG_DONTWAIT,
 						(struct sockaddr*) &sender, &sender_len);
-		if (r < MIN_FRAME_SIZE)
-			return;
+		
+		printf("received %d\n", r);
 		memcpy(&port->receiver, &sender, sender_len);
 		port->recv_len = sender_len;
 		bind_port_with_addr(port);
+		printf("bound port\n");
 	}
 
-	frame_t* frame = frame_from_str(buf);
+	if (r < MIN_FRAME_SIZE)
+		return;
+	
+	printf("frame: [%s]\n", buf);
+	frame_t* frame = frame_from_str(buf, r);
 	int vlan;
 	if (frame_is_tagged(frame)) {
 		vlan = frame_vlan(frame);
@@ -156,18 +166,18 @@ static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 		slicz_port_t* recv_port = macs_map_get(dst_mac, vlan);
 		add_frame_to_queue(port, recv_port, frame);
 	}
-	free(frame);
 }
 
 /* when we can write, we try to send one frame from out queue */
 static void write_frame_event(evutil_socket_t sock, short ev, void* arg) {
 	slicz_port_t* port = (slicz_port_t*) arg;
+	printf("write to %d\n", port->lis_port);
 	if (frame_queue_is_empty(port->queue) || !port->is_bound) {
 		event_del(port->write_event);
 		return;
 	}
 
-	frame_t* frame = malloc(sizeof (frame_t));
+	frame_t* frame = NULL;
 	frame_queue_pop(port->queue, frame);
 
 	if (frame_vlan(frame) == port->untagged) {
@@ -175,14 +185,17 @@ static void write_frame_event(evutil_socket_t sock, short ev, void* arg) {
 	}
 
 	char buf[MAX_FRAME_SIZE];
-	frame_to_str(frame, buf);
-	size_t len = strlen(buf);
+	size_t len = frame_to_str(frame, buf);
 
+	printf("frame: [%s]\n", buf);
+	printf("len: %d\n", len);
+	
 	if (send(port->sock, buf, len, MSG_DONTWAIT) < len)
 		port->errs++;
 	else
 		port->sent++;
 
+	printf("wyslalem\n");
 	free(frame);
 }
 

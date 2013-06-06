@@ -16,6 +16,7 @@ typedef struct frame {
 	uint16_t tpid; /* Tag Protocol Identifier (empty if untagged) */
 	uint16_t tci; /* Tag Control Information (empty if untagged) */
 	char content[MAX_CONTENT_SIZE]; /* ether_type + payload */
+	size_t content_len; /* length of frame */
 } __attribute__((packed)) frame_t;
 
 /* checks if frame is tagged 802.1q */
@@ -24,11 +25,11 @@ int frame_is_tagged(frame_t* f);
 /* returns frame's vlan (if none, undefined) */
 int frame_vlan(frame_t* f);
 
-/* returns frame from buffer */
-frame_t* frame_from_str(char* buf);
+/* returns frame from buffer (and it's length) */
+frame_t* frame_from_str(char* buf, size_t len);
 
-/* fills buffer with frame data */
-void frame_to_str(frame_t* f, char* buf);
+/* fills buffer with frame data, and returns length */
+size_t frame_to_str(frame_t* f, char* buf);
 
 /* returns source MAC */
 mac_t frame_src_mac(frame_t* f);

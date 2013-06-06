@@ -19,23 +19,33 @@ int frame_vlan(frame_t* f) {
 	return ntohs(f->tci) & VLAN_FILTER;
 }
 
-frame_t* frame_from_str(char* buf) {
+frame_t* frame_from_str(char* buf, size_t len) {
 	frame_t* f = malloc(sizeof (frame_t));
-	memcpy(f, buf, strlen(buf));
+	memcpy(f, buf, len);
+	
+	printf("recvd len: %d\n", len);
+	f->content_len = len - MACS_END;
+	
 	if (!frame_is_tagged(f)) {
-		size_t content_size = strlen(buf) - MACS_END;
 		/* move content to content section */
-		memmove(f + TAG_END, f + MACS_END, content_size);
+		memmove(f + TAG_END, f + MACS_END, f->content_len);
 	}
+	printf("set len: %d\n", f->content_len);
 	return f;
 }
 
-void frame_to_str(frame_t* f, char* buf) {
+size_t frame_to_str(frame_t* f, char* buf) {
 	buf = (char*) f;
+	size_t len = TAG_END;
+	printf("len before move: %d\n", f->content_len);
 	if (!frame_is_tagged(f)) {
 		/* pull content back to header */
-		memmove(buf + MACS_END, buf + TAG_END, strlen(f->content));
+		memmove(buf + MACS_END, buf + TAG_END, f->content_len);
+		len = MACS_END;
 	}
+	len += f->content_len;
+	printf("content len : %d\n", f->content_len);
+	return len;
 }
 
 void frame_set_vlan(frame_t* f, int vlan) {

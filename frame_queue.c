@@ -47,12 +47,11 @@ int frame_queue_push(frame_queue_t* q, frame_t* f) {
 }
 
 void frame_queue_pop(frame_queue_t* q, frame_t* frame) {
-	frame_t f = q->head->frame;
+	*frame = q->head->frame;
 	frame_node_t* old_head = q->head;
 	q->head = q->head->next;
 	free(old_head);
 	if (q->last == NULL)
 		q->last = q->head;
 	q->size -= sizeof (frame_t);
-	*frame = f;
 }
