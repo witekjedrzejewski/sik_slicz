@@ -26,5 +26,8 @@ void print_port_description(char* buf, port_list_t* ptr);
 void get_port_counters(port_list_t* ptr, uint16_t* port,
 				unsigned* recv, unsigned* sent, unsigned* errs);
 
+/* clears all allocated memory */
+void port_list_clear_memory();
+
 #endif
 

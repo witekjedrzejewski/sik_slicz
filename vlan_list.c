@@ -20,7 +20,7 @@ int vlan_list_add(vlan_list_t** list_ptr, uint16_t v) {
 	if (vlan_list_exists(*list_ptr, v))
 		return ERR_VLAN_DUP;
 
-	vlan_list_t* new = malloc(sizeof (vlan_list_t));
+	vlan_list_t* new = malloc(sizeof(vlan_list_t));
 	new->vlan = v;
 	new->next = NULL;
 

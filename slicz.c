@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <signal.h>
 
 #include "error_codes.h"
 #include "err.h"
@@ -177,7 +178,15 @@ void slicz_start() {
 	evconnlistener_set_error_cb(listener, accept_error_cb);
 }
 
+void catch(int unused) {
+	port_list_clear_memory();
+	event_base_loopbreak(base);
+}
+
 int main(int argc, char** argv) {
+	if (signal(SIGINT, catch) == SIG_ERR)
+		syserr("Setting SIGINT catch");
+	
 	char opt;
 	control_port = DEFAULT_CONTROL_PORT;
 	int was_c = 0;
