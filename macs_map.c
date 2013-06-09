@@ -82,3 +82,11 @@ void macs_map_delete_all_by_port(slicz_port_t* port) {
 int mac_is_multicast(mac_t mac) {
 	return mac.a[0] & 1;
 }
+
+void mac_to_str(mac_t mac, char* buf) {
+	int i;
+	for (i = 0; i < 6; i++) {
+		sprintf(buf + 3 * i, "%2X:", mac.a[i]);
+	}
+	buf[3 * i - 1] = '\0'; /* cut last : */
+}

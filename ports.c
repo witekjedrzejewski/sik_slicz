@@ -110,8 +110,8 @@ static void unbind_port_and_addr(slicz_port_t* port) {
 static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 
 	slicz_port_t* port = (slicz_port_t*) arg;
-	printf("reading from %d\n", port->lis_port);
-	
+	//printf("reading from %d\n", port->lis_port);
+
 	char buf[MAX_FRAME_SIZE];
 	memset(buf, 0, sizeof (buf));
 	int r;
@@ -125,7 +125,7 @@ static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 		socklen_t sender_len = (socklen_t) sizeof (sender);
 		r = recvfrom(sock, buf, sizeof (buf), MSG_DONTWAIT,
 						(struct sockaddr*) &sender, &sender_len);
-		
+
 		memcpy(&port->receiver, &sender, sender_len);
 		port->recv_len = sender_len;
 		bind_port_with_addr(port);
@@ -135,14 +135,16 @@ static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 
 	if (r < MIN_FRAME_SIZE)
 		return;
-	
+
 	frame_t* frame = frame_from_str(buf, r);
+	print_frame_header(frame);
+	printf("read on %d\n", port->lis_port);
 	int vlan;
 	if (frame_is_tagged(frame)) {
-		printf("tagged\n");
+		//printf("tagged\n");
 		vlan = frame_vlan(frame);
 	} else {
-		printf("untagged\n");
+		//printf("untagged\n");
 		vlan = port->untagged;
 		if (vlan == -1) {
 			port->errs++; /* untagged frame, no default vlan */
@@ -151,7 +153,7 @@ static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 		}
 	}
 	/* sets vlan in untagged, 
-	 * fills unused fields with 0 in tagged */ 
+	 * fills unused fields with 0 in tagged */
 	frame_set_vlan(frame, vlan);
 
 	mac_t src_mac = frame_src_mac(frame);
@@ -172,13 +174,13 @@ static void read_frame_event(evutil_socket_t sock, short ev, void* arg) {
 /* when we can write, we try to send one frame from out queue */
 static void write_frame_event(evutil_socket_t sock, short ev, void* arg) {
 	slicz_port_t* port = (slicz_port_t*) arg;
-	printf("write to %d\n", port->lis_port);
+	//printf("write to %d\n", port->lis_port);
 	if (frame_queue_is_empty(port->queue) || !port->is_bound) {
 		event_del(port->write_event);
 		return;
 	}
 
-	frame_t* frame = malloc(sizeof(frame_t));
+	frame_t* frame = malloc(sizeof (frame_t));
 	frame_queue_pop(port->queue, frame);
 
 	if (frame_vlan(frame) == port->untagged) {
@@ -187,12 +189,13 @@ static void write_frame_event(evutil_socket_t sock, short ev, void* arg) {
 
 	char buf[MAX_FRAME_SIZE];
 	size_t len = frame_to_str(frame, buf);
-	
+
 	if (send(port->sock, buf, len, MSG_DONTWAIT) < len)
 		port->errs++;
 	else
 		port->sent++;
 
+	print_frame_header(frame);
 	printf("sent from %d\n", port->lis_port);
 	free(frame);
 }
@@ -275,15 +278,6 @@ static void prepare_port(slicz_port_t* port, int is_new, uint16_t lis_port,
 	event_add(port->read_event, NULL); /* no timeout */
 }
 
-static void port_clear_memory(slicz_port_t* port) {
-	if (port->read_event) event_free(port->read_event);
-	if (port->write_event) event_free(port->write_event);
-	if (port->sock) close(port->sock);
-	delete_vlan_list(port->vlan_list);
-	frame_queue_delete_all(port->queue);
-	free(port);
-}
-
 /* --------------------------- PORT_LIST ------------------------------ */
 
 /* checks if listening port is on list */
@@ -330,15 +324,6 @@ port_list_t* port_list_get_first() {
 
 port_list_t* port_list_get_next(port_list_t* ptr) {
 	return ptr->next;
-}
-
-void port_list_clear_memory() {
-	while (port_list != NULL) {
-		port_list_t* old = port_list;
-		port_list = port_list->next;
-		port_clear_memory(old->port);
-		free(old);
-	}
 }
 
 /* ---------------------------- SETCONFIG ---------------------------------*/

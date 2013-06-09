@@ -29,7 +29,7 @@ char* slicz_addr = NULL;
 char* slicz_port = NULL;
 
 void slicz_read_callback(evutil_socket_t sock, short ev, void* arg) {
-	printf("sending\n");
+	printf("receiving\n");
 	int r = recv(slicz_fd, buf, sizeof (buf), 0);
 	if (r < 0) syserr("Slicz socket read");
 
@@ -38,7 +38,7 @@ void slicz_read_callback(evutil_socket_t sock, short ev, void* arg) {
 }
 
 void tap_read_callback(evutil_socket_t sock, short ev, void* arg) {
-	printf("receiving\n");
+	printf("sending\n");
 	int r = read(tap_fd, buf, sizeof (buf));
 	if (r < 0) syserr("Tap socket read");
 

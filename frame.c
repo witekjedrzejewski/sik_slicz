@@ -64,3 +64,11 @@ mac_t frame_src_mac(frame_t* f) {
 mac_t frame_dst_mac(frame_t* f) {
 	return f->dst_mac;
 }
+
+void print_frame_header(frame_t* f) {
+	char smac[18], dmac[18];
+	mac_to_str(f->src_mac, smac);
+	mac_to_str(f->dst_mac, dmac);
+	printf("%s | %s | %d\n", smac, dmac, 
+					frame_is_tagged(f) ? frame_vlan(f) : 0);
+}

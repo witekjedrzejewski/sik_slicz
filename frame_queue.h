@@ -22,7 +22,4 @@ int frame_queue_push(frame_queue_t* q, frame_t* f);
  * Use ONLY if queue not empty! */
 void frame_queue_pop(frame_queue_t* q, frame_t* f);
 
-/* deletes entire queue from memory */
-void frame_queue_delete_all(frame_queue_t* q);
-
 #endif

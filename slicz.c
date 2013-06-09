@@ -53,7 +53,7 @@ static void process_setconfig(char* config, struct evbuffer* output) {
 static void process_getconfig(struct evbuffer* output) {
 	port_list_t* iterator = port_list_get_first();
 	char buf[MAX_COMMAND_LINE_LENGTH];
-	
+
 	evbuffer_add_printf(output, "OK\n");
 	while (iterator != NULL) {
 		print_port_description(buf, iterator);
@@ -71,7 +71,7 @@ static void process_counters(struct evbuffer* output) {
 	evbuffer_add_printf(output, "OK\n");
 	while (iterator != NULL) {
 		get_port_counters(iterator, &port, &recv, &sent, &errs);
-		evbuffer_add_printf(output, "%d recvd:%d sent:%d errs:%d\n", 
+		evbuffer_add_printf(output, "%d recvd:%d sent:%d errs:%d\n",
 						port, recv, sent, errs);
 		iterator = port_list_get_next(iterator);
 	}
@@ -110,7 +110,7 @@ static void control_read_cb(struct bufferevent *bev, void *ctx) {
 			process_command(command_line, output);
 		free(command_line);
 	}
-	
+
 }
 
 /* on special event */
@@ -127,7 +127,7 @@ static void control_event_cb(struct bufferevent *bev, short events, void *ctx) {
 static void accept_conn_cb(struct evconnlistener *listener,
 				evutil_socket_t fd, struct sockaddr *address, int socklen,
 				void *ctx) {
-	
+
 	active_connections++;
 	struct event_base *base = evconnlistener_get_base(listener);
 	struct bufferevent *bev = bufferevent_socket_new(
@@ -136,7 +136,7 @@ static void accept_conn_cb(struct evconnlistener *listener,
 	bufferevent_setcb(bev, control_read_cb, NULL, control_event_cb, NULL);
 
 	bufferevent_enable(bev, EV_READ | EV_WRITE);
-	
+
 	struct evbuffer *output = bufferevent_get_output(bev);
 	if (active_connections > MAX_CONNECTIONS_NUMBER) {
 		print_error_to_buf("Too many connections, rejecting", output);
@@ -178,21 +178,14 @@ void slicz_start() {
 	evconnlistener_set_error_cb(listener, accept_error_cb);
 }
 
-void catch(int unused) {
-	port_list_clear_memory();
-	event_base_loopbreak(base);
-}
-
 int main(int argc, char** argv) {
-	if (signal(SIGINT, catch) == SIG_ERR)
-		syserr("Setting SIGINT catch");
-	
+
 	char opt;
 	control_port = DEFAULT_CONTROL_PORT;
 	int was_c = 0;
-	
+
 	/* we have to start base before adding ports (they have events) */
-	
+
 	while ((opt = getopt(argc, argv, "c:p:")) != -1) {
 		if (opt == 'c') {
 			if (!was_c) {
@@ -205,10 +198,10 @@ int main(int argc, char** argv) {
 			fatal("Wrong parameter");
 		}
 	}
-	
+
 	slicz_start();
 	optind = 1;
-	
+
 	while ((opt = getopt(argc, argv, "c:p:")) != -1) {
 		if (opt == 'p') {
 			if (setconfig(optarg) != OK)

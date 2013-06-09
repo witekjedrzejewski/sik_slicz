@@ -26,5 +26,8 @@ void macs_map_delete_all_by_port(slicz_port_t* port);
 /* checks if mac is set to multicast */
 int mac_is_multicast(mac_t mac);
 
+/* prints mac to buf */
+void mac_to_str(mac_t mac, char* buf);
+
 #endif
 

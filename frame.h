@@ -43,5 +43,8 @@ void frame_untag(frame_t* f);
 /* sets vlan */
 void frame_set_vlan(frame_t* f, int vlan);
 
+/* printd frame header info to stdout */
+void print_frame_header(frame_t* f);
+
 #endif
 
